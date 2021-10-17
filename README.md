@@ -1,6 +1,6 @@
-# mastering-git-august
-## Dogukan
-### Dogru
+> # mastering-git-august
+> ## Dogukan
+> ### Dogru
 
 Removed2
 Removed3
