@@ -1,0 +1,41 @@
+% Store configurations of all sensor
+sensorConfigs = cell(numel(lidars),1);
+
+% Fill in sensor configurations
+for i = 1:numel(sensorConfigs)
+    sensorConfigs{i} = helperGetLidarConfig(lidars{i},egoVehicle);
+end
+
+% Create tracker. You can define the properties before using the tracker.
+tracker = trackerGridRFS('SensorConfigurations',sensorConfigs,...
+    'HasSensorConfigurationsInput',true);
+The tracker uses a two-dimensional grid for the intermediate representation of the environment. The grid is defined by 3 attributes: its length, its width, and the resolution. The length and width describe the span of the grid in local X and local Y direction of the ego vehicle respectively. The resolution defines the number of cells per meter of the grid. In this example, you use a 120 m by 120 m grid with 2 cells per meter.
+
+tracker.GridLength = 120; % meters
+tracker.GridWidth = 120; % meters
+tracker.GridResolution = 2; % 1/meters
+In addition to defining the grid, you also define the relative position of the ego vehicle by specifying the origin of the grid (left corner) with respect to the origin of the ego vehicle. In this example, the ego vehicle is located at the center of the grid.
+
+tracker.GridOriginInLocal = [-tracker.GridLength/2 -tracker.GridWidth/2];
+The tracker uses particle-based methods to estimate the state of each grid cell and further classify them as dynamic or static. It uses a fixed number of persistent particles on the grid which defines the distribution of existing targets. It also uses a fixed number of particles to sample the distribution for newborn targets. These birth particles get sampled in different grid cells based on the probability of birth. Further, the velocity and other unknown states like turn-rate and acceleration (applicable when MotionModel of the tracker is not constant-velocity) of the particles is sampled uniformly using prior information supplied using prior limits. A resampling step assures that the number of particles on the grid remain constant.
+
+tracker.NumParticles = 1e5; % Number of persistent particles
+tracker.NumBirthParticles = 2e4; % Number of birth particles
+tracker.VelocityLimits = [-15 15;-15 15]; % To sample velocity of birth particles (m/s)
+tracker.BirthProbability = 0.025; % Probability of birth in each grid cell
+tracker.ProcessNoise = 5*eye(2); % Process noise of particles for prediction as variance of [ax;ay] (m/s^2)
+The tracker uses the Dempster-Shafer approach to define the occupancy of each cell. The dynamic grid estimates the belief mass for occupancy and free state of the grid. During prediction, the occupancy belief mass of the grid cell updates due to prediction of the particle distribution. The DeathRate controls the probability of survival (P
+s
+) of particles and results in a decay of occupancy belief mass during prediction. As the free belief mass is not linked to the particles, the free belief mass decays using a pre-specified, constant discount factor. This discount factor specifies the probability that free regions remain free during prediction.
+
+tracker.DeathRate = 1e-3; % Per unit time. Translates to Ps = 0.9999 for 10 Hz
+tracker.FreeSpaceDiscountFactor = 1e-2; % Per unit time. Translates to a discount factor of 0.63 (1e-2^dT) for 10 Hz
+After estimation of state of each grid cell, the tracker classifies each grid cell as static or dynamic by using its estimated velocity and associated uncertainty. Further, the tracker uses dynamic cells to extract object-level hypothesis using the following technique:
+
+Each dynamic grid cell is considered for assignment with existing tracks. A dynamic grid cell is assigned to its nearest track if the negative log-likelihood between a grid cell and a track falls below an assignment threshold. A dynamic grid cell outside the assignment threshold is considered unassigned. The tracker uses unassigned grid cells at each step to initiate new tracks. Because multiple unassigned grid cells can belong to the same object track, a DBSCAN clustering algorithm is used to assist in this step. Because there are false positives while classifying the cells as static or dynamic, the tracker filters those false alarms in two ways. First, only unassigned cells which form clusters with more than a specified number of points (MinNumPointsPerCluster) can create new tracks. Second, each track is initialized as a tentative track first and is only confirmed if it is detected M out of N times.
+
+tracker.AssignmentThreshold = 8; % Maximum distance or negative log-likelihood between cell and track
+tracker.MinNumCellsPerCluster = 6; % Minimum number of grid cells per cluster for creating new tracks
+tracker.ClusteringThreshold = 1; % Minimum Euclidean distance between two cells for clustering
+tracker.ConfirmationThreshold = [3 4]; % Threshold to confirm tracks
+tracker.DeletionThreshold = [4 4]; % Threshold to delete confirmed tracks
