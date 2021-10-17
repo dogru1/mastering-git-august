@@ -1,6 +1,6 @@
 # mastering-git-august
-## header2
-### header3
+## Dogukan
+### Dogru
 
 Removed2
 Removed3
@@ -19,4 +19,5 @@ Removed3
 # This is our first repo
 ## We create some files
 -script.sh
+
 -pyhton.md
